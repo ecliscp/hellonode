@@ -1,0 +1,230 @@
+#!/usr/bin/env bash
+TLS=${TLS:-''}
+UUID=${UUID:-'6a43da28-031b-4bc8-a521-9728b073b32b'}
+VL_WSPATH=${VL_WSPATH:-'/vl'}
+VM_WSPATH=${VM_WSPATH:-'/vm'}
+TR_WSPATH=${TR_WSPATH:-'/tr'}
+SR_WSPATH=${SR_WSPATH:-'/sr'}
+
+
+generate_config() {
+  cat > config.json << EOF
+{
+    "log":{
+        "access":"/dev/null",
+        "error":"/dev/null",
+        "loglevel":"none"
+    },
+    "inbounds":[
+        {
+            "port":8080,
+            "protocol":"vless",
+            "settings":{
+                "clients":[
+                    {
+                        "id":"${UUID}",
+                        "flow":"xtls-rprx-vision"
+                    }
+                ],
+                "decryption":"none",
+                "fallbacks":[
+                    {
+                        "dest":3001
+                    },
+                    {
+                        "path":"${VL_WSPATH}",
+                        "dest":3002
+                    },
+                    {
+                        "path":"${VM_WSPATH}",
+                        "dest":3003
+                    },
+                    {
+                        "path":"${TR_WSPATH}",
+                        "dest":3004
+                    },
+                    {
+                        "path":"${SR_WSPATH}",
+                        "dest":3005
+                    }
+                ]
+            },
+            "streamSettings":{
+                "network":"tcp"
+            }
+        },
+        {
+            "port":3001,
+            "listen":"127.0.0.1",
+            "protocol":"vless",
+            "settings":{
+                "clients":[
+                    {
+                        "id":"${UUID}"
+                    }
+                ],
+                "decryption":"none"
+            },
+            "streamSettings":{
+                "network":"ws",
+                "security":"none"
+            }
+        },
+        {
+            "port":3002,
+            "listen":"127.0.0.1",
+            "protocol":"vless",
+            "settings":{
+                "clients":[
+                    {
+                        "id":"${UUID}",
+                        "level":0
+                    }
+                ],
+                "decryption":"none"
+            },
+            "streamSettings":{
+                "network":"ws",
+                "security":"none",
+                "wsSettings":{
+                    "path":"${VL_WSPATH}"
+                }
+            },
+            "sniffing":{
+                "enabled":false,
+                "destOverride":[
+                    "http",
+                    "tls"
+                ],
+                "metadataOnly":false
+            }
+        },
+        {
+            "port":3003,
+            "listen":"127.0.0.1",
+            "protocol":"vmess",
+            "settings":{
+                "clients":[
+                    {
+                        "id":"${UUID}",
+                        "alterId":0
+                    }
+                ]
+            },
+            "streamSettings":{
+                "network":"ws",
+                "wsSettings":{
+                    "path":"${VM_WSPATH}"
+                }
+            },
+            "sniffing":{
+                "enabled":false,
+                "destOverride":[
+                    "http",
+                    "tls"
+                ],
+                "metadataOnly":false
+            }
+        },
+        {
+            "port":3004,
+            "listen":"127.0.0.1",
+            "protocol":"trojan",
+            "settings":{
+                "clients":[
+                    {
+                        "password":"${UUID}"
+                    }
+                ]
+            },
+            "streamSettings":{
+                "network":"ws",
+                "security":"none",
+                "wsSettings":{
+                    "path":"${TR_WSPATH}"
+                }
+            },
+            "sniffing":{
+                "enabled":false,
+                "destOverride":[
+                    "http",
+                    "tls"
+                ],
+                "metadataOnly":false
+            }
+        },
+        {
+            "port":3005,
+            "listen":"127.0.0.1",
+            "protocol":"shadowsocks",
+            "settings":{
+                "clients":[
+                    {
+                        "method":"chacha20-ietf-poly1305",
+                        "password":"${UUID}"
+                    }
+                ],
+                "decryption":"none"
+            },
+            "streamSettings":{
+                "network":"ws",
+                "wsSettings":{
+                    "path":"${SR_WSPATH}"
+                }
+            },
+            "sniffing":{
+                "enabled":false,
+                "destOverride":[
+                    "http",
+                    "tls"
+                ],
+                "metadataOnly":false
+            }
+        }
+    ],
+    "outbounds":[
+        {
+            "protocol":"freedom"
+        },
+        {
+            "tag": "WARP",
+            "protocol": "wireguard",
+            "settings": {
+                "secretKey": "GAl2z55U2UzNU5FG+LW3kowK+BA/WGMi1dWYwx20pWk=",
+                "address": [
+                    "172.16.0.2/32",
+                    "2606:4700:110:8f0a:fcdb:db2f:3b3:4d49/128"
+                ],
+                "peers": [
+                    {
+                        "publicKey": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
+                        "endpoint": "engage.cloudflareclient.com:2408"
+                    }
+                ]
+            }
+        }
+    ],
+    "routing": {
+        "domainStrategy": "AsIs",
+        "rules": [
+            {
+                "type": "field",
+                "domain": [
+                    "domain:openai.com",
+                    "domain:ai.com"
+                ],
+                "outboundTag": "WARP"
+            }
+        ]
+    },
+    "dns":{
+        "servers":[
+            "https+local://8.8.8.8/dns-query"
+        ]
+    }
+}
+EOF
+}
+
+generate_config
+wait
